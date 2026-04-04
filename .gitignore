@@ -1,0 +1,17 @@
+node_modules/
+.env
+explanation/
+PRD.md
+assignment.txt
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor/IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
