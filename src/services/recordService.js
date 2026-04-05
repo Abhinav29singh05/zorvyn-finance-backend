@@ -1,6 +1,5 @@
 const db = require('../config/db');
 
-// --- Create a financial record ---
 const createRecord = async ({ user_id, amount, type, category, date, description }) => {
   const { rows } = await db.query(
     `INSERT INTO financial_records (user_id, amount, type, category, date, description)
@@ -11,42 +10,22 @@ const createRecord = async ({ user_id, amount, type, category, date, description
   return rows[0];
 };
 
-// --- Get all records with optional filters ---
-// This is the most complex query in the project because it builds
-// a WHERE clause dynamically based on which filters the client sends.
-//
-// Supported filters (all optional, from query string):
-//   ?type=income
-//   ?category=salary
-//   ?startDate=2025-01-01&endDate=2025-03-31
-//   ?minAmount=100&maxAmount=5000
-//
-// The approach: start with a base query, then conditionally append
-// WHERE conditions. Each condition uses a parameterized placeholder ($1, $2, ...)
-// to prevent SQL injection.
-
+// supports filtering, search, and pagination
 const findAll = async (filters = {}) => {
-  const { type, category, startDate, endDate, minAmount, maxAmount } = filters;
+  const { type, category, startDate, endDate, minAmount, maxAmount, search, page = 1, limit = 10 } = filters;
+  const offset = (page - 1) * limit;
 
-  // Base query — joins with users table to get the creator's name.
-  // This avoids a second query to look up who created each record.
-  let query = `
-    SELECT fr.*, u.name AS created_by
+  let baseFrom = `
     FROM financial_records fr
     JOIN users u ON fr.user_id = u.id
   `;
 
-  // conditions[] holds SQL fragments like "fr.type = $1"
-  // params[] holds the actual values like "income"
-  // The index of each param matches its $N placeholder.
-  const conditions = [];
+  const conditions = ['fr.deleted_at IS NULL'];
   const params = [];
 
   if (type) {
     params.push(type);
     conditions.push(`fr.type = $${params.length}`);
-    // If type is the first filter: params = ['income'], condition = 'fr.type = $1'
-    // params.length gives us the correct $N number automatically.
   }
 
   if (category) {
@@ -74,32 +53,53 @@ const findAll = async (filters = {}) => {
     conditions.push(`fr.amount <= $${params.length}`);
   }
 
-  // If any filters were provided, join them with AND into a WHERE clause.
-  // Example: WHERE fr.type = $1 AND fr.date >= $2 AND fr.date <= $3
-  if (conditions.length > 0) {
-    query += ` WHERE ${conditions.join(' AND ')}`;
+  // case-insensitive search across category and description
+  if (search) {
+    params.push(`%${search}%`);
+    conditions.push(`(fr.category ILIKE $${params.length} OR fr.description ILIKE $${params.length})`);
   }
 
-  query += ` ORDER BY fr.date DESC`;
+  const whereClause = ` WHERE ${conditions.join(' AND ')}`;
 
-  const { rows } = await db.query(query, params);
-  return rows;
+  // run data + count queries in parallel
+  const countParams = [...params];
+  const dataParams = [...params];
+  dataParams.push(limit);
+  dataParams.push(offset);
+
+  const [dataResult, countResult] = await Promise.all([
+    db.query(
+      `SELECT fr.*, u.name AS created_by ${baseFrom} ${whereClause}
+       ORDER BY fr.date DESC
+       LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+      dataParams
+    ),
+    db.query(
+      `SELECT COUNT(*)::int AS total ${baseFrom} ${whereClause}`,
+      countParams
+    ),
+  ]);
+
+  return {
+    records: dataResult.rows,
+    total: countResult.rows[0].total,
+    page,
+    limit,
+    totalPages: Math.ceil(countResult.rows[0].total / limit),
+  };
 };
 
-// --- Get a single record by ID ---
 const findById = async (id) => {
   const { rows } = await db.query(
     `SELECT fr.*, u.name AS created_by
      FROM financial_records fr
      JOIN users u ON fr.user_id = u.id
-     WHERE fr.id = $1`,
+     WHERE fr.id = $1 AND fr.deleted_at IS NULL`,
     [id]
   );
   return rows[0];
 };
 
-// --- Update a record ---
-// Same COALESCE pattern as userService — only updates provided fields.
 const updateRecord = async (id, { amount, type, category, date, description }) => {
   const { rows } = await db.query(
     `UPDATE financial_records
@@ -109,17 +109,20 @@ const updateRecord = async (id, { amount, type, category, date, description }) =
          date = COALESCE($4, date),
          description = COALESCE($5, description),
          updated_at = CURRENT_TIMESTAMP
-     WHERE id = $6
+     WHERE id = $6 AND deleted_at IS NULL
      RETURNING *`,
     [amount, type, category, date, description, id]
   );
   return rows[0];
 };
 
-// --- Delete a record ---
+// soft delete
 const deleteRecord = async (id) => {
   const { rows } = await db.query(
-    `DELETE FROM financial_records WHERE id = $1 RETURNING id`,
+    `UPDATE financial_records
+     SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1 AND deleted_at IS NULL
+     RETURNING id`,
     [id]
   );
   return rows[0];

@@ -11,7 +11,7 @@ router.use(authenticate);
  * @swagger
  * /records:
  *   get:
- *     summary: List financial records (with optional filters)
+ *     summary: List financial records (filterable, searchable, paginated)
  *     tags: [Financial Records]
  *     security:
  *       - bearerAuth: []
@@ -49,9 +49,26 @@ router.use(authenticate);
  *         schema:
  *           type: number
  *         description: Maximum amount
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search in category and description (case-insensitive)
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Results per page
  *     responses:
  *       200:
- *         description: List of financial records
+ *         description: Paginated list of financial records
  *       403:
  *         description: Access denied (Analyst or Admin only)
  *   post:
@@ -154,7 +171,7 @@ router.post('/', authorize('admin'), validate(createRecordSchema), recordControl
  *       404:
  *         description: Record not found
  *   delete:
- *     summary: Delete a financial record
+ *     summary: Soft delete a financial record
  *     tags: [Financial Records]
  *     security:
  *       - bearerAuth: []
@@ -167,7 +184,7 @@ router.post('/', authorize('admin'), validate(createRecordSchema), recordControl
  *           format: uuid
  *     responses:
  *       200:
- *         description: Record deleted successfully
+ *         description: Record deleted successfully (soft delete)
  *       404:
  *         description: Record not found
  */

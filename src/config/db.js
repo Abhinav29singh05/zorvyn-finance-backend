@@ -1,18 +1,15 @@
 const { Pool } = require('pg');
 
-// Pool manages a set of reusable database connections.
-// Instead of opening/closing a connection for every query,
-// the pool keeps connections alive and reuses them — much faster.
+// reuse connections instead of opening a new one per query
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  // In production (like Render), PostgreSQL often requires SSL
+  // production PG on Render needs SSL
   ssl: process.env.NODE_ENV === 'production'
     ? { rejectUnauthorized: false }
     : false,
 });
 
-// Quick helper: pass a SQL query string + params array, get rows back.
-// Usage: const { rows } = await db.query('SELECT * FROM users WHERE id = $1', [id]);
+// shorthand for pool.query
 const query = (text, params) => pool.query(text, params);
 
 module.exports = { pool, query };

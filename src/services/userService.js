@@ -1,13 +1,9 @@
 const db = require('../config/db');
 const bcrypt = require('bcrypt');
 
-// Salt rounds = how many times bcrypt re-hashes the password.
-// 10 is the standard — secure enough, but doesn't make login slow.
-// Higher = more secure but slower. 10 takes ~100ms, 14 takes ~1s.
+// 10 rounds is the standard sweet spot for bcrypt
 const SALT_ROUNDS = 10;
 
-// --- Create a new user ---
-// Hashes the password before storing. Never store plain-text passwords.
 const createUser = async ({ name, email, password, role = 'viewer' }) => {
   const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
@@ -17,50 +13,58 @@ const createUser = async ({ name, email, password, role = 'viewer' }) => {
      RETURNING id, name, email, role, status, created_at`,
     [name, email, hashedPassword, role]
   );
-
-  // RETURNING gives us the created row back without a second SELECT query.
-  // Notice we don't return the password — never send hashed passwords in responses.
   return rows[0];
 };
 
-// --- Get all users ---
-// ORDER BY created_at DESC = newest users first.
-const findAll = async () => {
-  const { rows } = await db.query(
-    `SELECT id, name, email, role, status, created_at, updated_at
-     FROM users
-     ORDER BY created_at DESC`
-  );
-  return rows;
+// paginated list, excluding soft-deleted users
+const findAll = async ({ page = 1, limit = 10 } = {}) => {
+  const offset = (page - 1) * limit;
+
+  const [dataResult, countResult] = await Promise.all([
+    db.query(
+      `SELECT id, name, email, role, status, created_at, updated_at
+       FROM users
+       WHERE deleted_at IS NULL
+       ORDER BY created_at DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    ),
+    db.query(
+      `SELECT COUNT(*)::int AS total FROM users WHERE deleted_at IS NULL`
+    ),
+  ]);
+
+  return {
+    users: dataResult.rows,
+    total: countResult.rows[0].total,
+    page,
+    limit,
+    totalPages: Math.ceil(countResult.rows[0].total / limit),
+  };
 };
 
-// --- Get a single user by ID ---
 const findById = async (id) => {
   const { rows } = await db.query(
     `SELECT id, name, email, role, status, created_at, updated_at
      FROM users
-     WHERE id = $1`,
+     WHERE id = $1 AND deleted_at IS NULL`,
     [id]
   );
-  // rows[0] is undefined if no user found — the controller checks for this.
   return rows[0];
 };
 
-// --- Find user by email (used during login) ---
-// This one DOES return the password because bcrypt.compare() needs it.
+// includes password hash — needed for bcrypt.compare during login
 const findByEmail = async (email) => {
   const { rows } = await db.query(
     `SELECT id, name, email, password, role, status
      FROM users
-     WHERE email = $1`,
+     WHERE email = $1 AND deleted_at IS NULL`,
     [email]
   );
   return rows[0];
 };
 
-// --- Update a user ---
-// Only updates the fields that are provided (partial update).
-// Uses COALESCE — if the new value is null/undefined, keep the old value.
+// COALESCE keeps existing values for fields not provided
 const updateUser = async (id, { name, email, role, status }) => {
   const { rows } = await db.query(
     `UPDATE users
@@ -69,22 +73,22 @@ const updateUser = async (id, { name, email, role, status }) => {
          role = COALESCE($3, role),
          status = COALESCE($4, status),
          updated_at = CURRENT_TIMESTAMP
-     WHERE id = $5
+     WHERE id = $5 AND deleted_at IS NULL
      RETURNING id, name, email, role, status, created_at, updated_at`,
     [name, email, role, status, id]
   );
   return rows[0];
 };
 
-// --- Delete a user ---
-// Hard delete — the row is permanently removed.
-// ON DELETE CASCADE in schema.sql means their financial records are deleted too.
+// soft delete — set deleted_at instead of removing the row
 const deleteUser = async (id) => {
   const { rows } = await db.query(
-    `DELETE FROM users WHERE id = $1 RETURNING id`,
+    `UPDATE users
+     SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1 AND deleted_at IS NULL
+     RETURNING id`,
     [id]
   );
-  // Returns the deleted row's id, or undefined if the user didn't exist.
   return rows[0];
 };
 

@@ -46,13 +46,26 @@ router.use(authenticate);
  *       409:
  *         description: Email already exists
  *   get:
- *     summary: List all users
+ *     summary: List all users (paginated)
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Results per page
  *     responses:
  *       200:
- *         description: List of all users
+ *         description: Paginated list of users
  *       403:
  *         description: Access denied (Admin only)
  */
@@ -116,7 +129,7 @@ router.get('/', authorize('admin'), userController.getAllUsers);
  *       404:
  *         description: User not found
  *   delete:
- *     summary: Delete a user
+ *     summary: Soft delete a user
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -129,7 +142,7 @@ router.get('/', authorize('admin'), userController.getAllUsers);
  *           format: uuid
  *     responses:
  *       200:
- *         description: User deleted successfully
+ *         description: User deleted successfully (soft delete)
  *       404:
  *         description: User not found
  */

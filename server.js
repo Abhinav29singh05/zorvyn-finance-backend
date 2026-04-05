@@ -1,4 +1,4 @@
-// Load environment variables FIRST — before any other module reads them.
+// load env vars before anything else
 require('dotenv').config();
 
 const app = require('./src/app');
@@ -6,9 +6,7 @@ const { pool } = require('./src/config/db');
 
 const PORT = process.env.PORT || 3000;
 
-// Test database connection, then start the server.
-// If DB is unreachable, we fail fast with a clear error instead of starting
-// a server that will crash on the first query.
+// fail fast if DB is unreachable
 pool.query('SELECT NOW()')
   .then(() => {
     console.log('Connected to PostgreSQL');

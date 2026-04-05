@@ -1,10 +1,6 @@
 const Joi = require('joi');
 
-// Joi schemas define WHAT valid input looks like.
-// If the input doesn't match, Joi returns a detailed error message.
-// This prevents bad data from ever reaching the controller/service.
-
-// Schema for POST /api/users (creating a new user)
+// create user — all fields required except role (defaults to viewer)
 const createUserSchema = Joi.object({
   name: Joi.string().trim().min(2).max(100).required()
     .messages({
@@ -32,8 +28,7 @@ const createUserSchema = Joi.object({
     }),
 });
 
-// Schema for PATCH /api/users/:id (updating a user)
-// All fields are optional here — the user only sends what they want to change.
+// update user — all optional, but need at least one field
 const updateUserSchema = Joi.object({
   name: Joi.string().trim().min(2).max(100)
     .messages({
@@ -56,26 +51,18 @@ const updateUserSchema = Joi.object({
       'any.only': 'Status must be active or inactive.',
     }),
 })
-  // At least one field must be provided — an empty update makes no sense.
   .min(1)
   .messages({
     'object.min': 'At least one field must be provided to update.',
   });
 
-// Validate function factory — takes a schema and returns middleware.
-// Same pattern as authorize() in rbac.js: a function that returns a function.
-//
-// Usage in routes:
-//   router.post('/', validate(createUserSchema), controller.create);
+// takes a Joi schema, returns validation middleware
 const validate = (schema) => {
   return (req, res, next) => {
-    // abortEarly: false → collect ALL errors, not just the first one.
-    // This way the client can fix everything in one go instead of
-    // fixing one error, submitting, finding another, fixing, submitting...
+    // abortEarly: false so the client gets all errors at once
     const { error, value } = schema.validate(req.body, { abortEarly: false });
 
     if (error) {
-      // Joi returns errors in a nested structure. We extract just the messages.
       const errors = error.details.map((detail) => detail.message);
 
       return res.status(400).json({
@@ -85,8 +72,7 @@ const validate = (schema) => {
       });
     }
 
-    // Replace req.body with the validated (and trimmed/defaulted) value.
-    // This ensures the controller gets clean, validated data.
+    // use validated + trimmed body going forward
     req.body = value;
     next();
   };

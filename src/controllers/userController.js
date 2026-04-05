@@ -1,17 +1,9 @@
 const userService = require('../services/userService');
 
-// Controllers are THIN — they only:
-//   1. Read data from the request (req.params, req.body, req.query)
-//   2. Call the service layer to do the actual work
-//   3. Send the response
-// All business logic and DB queries live in the service layer.
-
-// POST /api/users — Create a new user (Admin only)
 const createUser = async (req, res, next) => {
   try {
     const { name, email, password, role } = req.body;
 
-    // Check if email is already taken
     const existingUser = await userService.findByEmail(email);
     if (existingUser) {
       return res.status(409).json({
@@ -22,8 +14,6 @@ const createUser = async (req, res, next) => {
 
     const user = await userService.createUser({ name, email, password, role });
 
-    // 201 = "Created" — the correct status code when a new resource is created.
-    // Don't use 200 for creation — it technically means "OK" (generic success).
     res.status(201).json({
       success: true,
       message: 'User created successfully.',
@@ -34,21 +24,28 @@ const createUser = async (req, res, next) => {
   }
 };
 
-// GET /api/users — List all users (Admin only)
 const getAllUsers = async (req, res, next) => {
   try {
-    const users = await userService.findAll();
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
+
+    const result = await userService.findAll({ page, limit });
 
     res.json({
       success: true,
-      data: users,
+      data: result.users,
+      pagination: {
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+        totalPages: result.totalPages,
+      },
     });
   } catch (err) {
     next(err);
   }
 };
 
-// GET /api/users/:id — Get a single user (Admin only)
 const getUserById = async (req, res, next) => {
   try {
     const user = await userService.findById(req.params.id);
@@ -69,14 +66,10 @@ const getUserById = async (req, res, next) => {
   }
 };
 
-// PATCH /api/users/:id — Update a user (Admin only)
-// PATCH (not PUT) because we're doing partial updates — only changing
-// the fields the client sends, not replacing the entire resource.
 const updateUser = async (req, res, next) => {
   try {
     const { name, email, role, status } = req.body;
 
-    // Check if user exists first
     const existingUser = await userService.findById(req.params.id);
     if (!existingUser) {
       return res.status(404).json({
@@ -85,7 +78,6 @@ const updateUser = async (req, res, next) => {
       });
     }
 
-    // If email is being changed, check it's not taken by another user
     if (email && email !== existingUser.email) {
       const emailTaken = await userService.findByEmail(email);
       if (emailTaken) {
@@ -108,7 +100,6 @@ const updateUser = async (req, res, next) => {
   }
 };
 
-// DELETE /api/users/:id — Delete a user (Admin only)
 const deleteUser = async (req, res, next) => {
   try {
     const user = await userService.deleteUser(req.params.id);

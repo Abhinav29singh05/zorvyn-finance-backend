@@ -62,7 +62,7 @@ const options = {
       },
     },
   },
-  // Path to files containing Swagger annotations (JSDoc comments)
+  // scan route files for @swagger annotations
   apis: ['./src/routes/*.js'],
 };
 

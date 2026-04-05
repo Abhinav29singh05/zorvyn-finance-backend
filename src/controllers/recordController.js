@@ -1,12 +1,9 @@
 const recordService = require('../services/recordService');
 
-// POST /api/records — Create a record (Admin only)
 const createRecord = async (req, res, next) => {
   try {
     const { amount, type, category, date, description } = req.body;
 
-    // req.user.id comes from the JWT token (set by auth middleware).
-    // This ties the record to the logged-in admin who created it.
     const record = await recordService.createRecord({
       user_id: req.user.id,
       amount,
@@ -26,33 +23,39 @@ const createRecord = async (req, res, next) => {
   }
 };
 
-// GET /api/records — List records with optional filters (Analyst, Admin)
-// Filters come from query string: ?type=income&startDate=2025-01-01
-// req.query is automatically populated by Express from the URL query string.
 const getAllRecords = async (req, res, next) => {
   try {
-    const { type, category, startDate, endDate, minAmount, maxAmount } = req.query;
+    const { type, category, startDate, endDate, minAmount, maxAmount, search } = req.query;
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
 
-    const records = await recordService.findAll({
+    const result = await recordService.findAll({
       type,
       category,
       startDate,
       endDate,
       minAmount,
       maxAmount,
+      search,
+      page,
+      limit,
     });
 
     res.json({
       success: true,
-      count: records.length,
-      data: records,
+      data: result.records,
+      pagination: {
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+        totalPages: result.totalPages,
+      },
     });
   } catch (err) {
     next(err);
   }
 };
 
-// GET /api/records/:id — Get a single record (Analyst, Admin)
 const getRecordById = async (req, res, next) => {
   try {
     const record = await recordService.findById(req.params.id);
@@ -73,12 +76,10 @@ const getRecordById = async (req, res, next) => {
   }
 };
 
-// PATCH /api/records/:id — Update a record (Admin only)
 const updateRecord = async (req, res, next) => {
   try {
     const { amount, type, category, date, description } = req.body;
 
-    // Check if record exists
     const existing = await recordService.findById(req.params.id);
     if (!existing) {
       return res.status(404).json({
@@ -105,7 +106,6 @@ const updateRecord = async (req, res, next) => {
   }
 };
 
-// DELETE /api/records/:id — Delete a record (Admin only)
 const deleteRecord = async (req, res, next) => {
   try {
     const record = await recordService.deleteRecord(req.params.id);

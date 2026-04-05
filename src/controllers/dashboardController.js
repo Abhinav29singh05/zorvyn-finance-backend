@@ -1,6 +1,5 @@
 const dashboardService = require('../services/dashboardService');
 
-// GET /api/dashboard/summary — Total income, expenses, net balance
 const getSummary = async (req, res, next) => {
   try {
     const summary = await dashboardService.getSummary();
@@ -14,7 +13,6 @@ const getSummary = async (req, res, next) => {
   }
 };
 
-// GET /api/dashboard/category-totals — Totals grouped by category and type
 const getCategoryTotals = async (req, res, next) => {
   try {
     const totals = await dashboardService.getCategoryTotals();
@@ -28,8 +26,7 @@ const getCategoryTotals = async (req, res, next) => {
   }
 };
 
-// GET /api/dashboard/recent-activity — Last N transactions
-// Optional query param: ?limit=5 (defaults to 10)
+// ?limit=5 to override default of 10
 const getRecentActivity = async (req, res, next) => {
   try {
     const limit = parseInt(req.query.limit, 10) || 10;
@@ -45,7 +42,6 @@ const getRecentActivity = async (req, res, next) => {
   }
 };
 
-// GET /api/dashboard/trends — Monthly income vs expense
 const getTrends = async (req, res, next) => {
   try {
     const trends = await dashboardService.getMonthlyTrends();

@@ -1,10 +1,8 @@
 const Joi = require('joi');
 const { validate } = require('./userValidator');
 
-// Re-use the validate() factory from userValidator — no need to duplicate it.
-// This is why we made validate() generic: it works with ANY Joi schema.
+// reusing validate() from userValidator — it's generic
 
-// Schema for POST /api/records (creating a record)
 const createRecordSchema = Joi.object({
   amount: Joi.number().positive().precision(2).required()
     .messages({
@@ -37,7 +35,7 @@ const createRecordSchema = Joi.object({
     }),
 });
 
-// Schema for PATCH /api/records/:id (updating a record)
+// all optional, at least one required
 const updateRecordSchema = Joi.object({
   amount: Joi.number().positive().precision(2)
     .messages({
