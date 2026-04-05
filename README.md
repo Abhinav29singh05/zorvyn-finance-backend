@@ -52,6 +52,8 @@ npm start      # production
 
 Visit **http://localhost:3000/api-docs** for interactive Swagger documentation.
 
+> **Note:** To access protected endpoints in Swagger, first call the `/api/auth/login` endpoint with valid credentials. Copy the `token` from the response, then click the **Authorize** button (top-right of the Swagger page), enter `Bearer <your-token>`, and click **Authorize**. All subsequent requests will include the token automatically.
+
 ## Seed Users
 
 | Email | Password | Role |
